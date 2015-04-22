@@ -3,92 +3,26 @@
 
 set -e
 set -o pipefail
-urls=(
-https://github.com/heroku-buildpack-ocaml/build-scripts/raw/master/files/gdbm-1.10.tgz
-https://github.com/heroku-buildpack-ocaml/build-scripts/raw/master/files/pcre.tgz
-https://codefirst.org/mzp/ocamlbrew-4.00.1_1.tgz
-)
 
 BUILD_DIR=$1
 CACHE_DIR=$2
 
-function indent() {
-  c='s/^/       /'
-  case $(uname) in
-    Darwin) sed -l "$c";;
-    *)      sed -u "$c";;
-  esac
-}
+export OPAMROOT=$CACHE_DIR/.opam
 
-function setup() {
-  dir=$1
-  url=$2
+echo "-----> Install OPAM and OCaml"
+if [ -f $CACHE_DIR/opam ]; then
+	echo ">> From cache: $CACHE_DIR"
+	cp -a $CACHE_DIR/opam /app/vendor
+else
+	echo ">> From scratch"
+	curl https://raw.githubusercontent.com/ocaml/opam/master/shell/opam_installer.sh -o opam_installer.sh
+	mkdir -p /app/vendor
+	yes N | sh opam_installer.sh /app/vendor || true
+	cp -a /app/vendor/opam $CACHE_DIR/
+fi
 
-  cache=$CACHE_DIR/cache/$(basename $url)
-
-  mkdir -p $dir
-  mkdir -p $CACHE_DIR/cache
-
-  if [ -f $cache ]; then
-    echo "use from $cache"
-    tar xzf $cache -C $dir
-  else
-    echo "fetching $url"
-    curl -L $url -s -o - | tee $cache | tar xzf - -C $dir
-  fi
-}
-
-function copy(){
-  for name in $@; do
-    echo "install $name"
-    mkdir -p $(dirname $BUILD_DIR/$name)
-    cp -r /app/$name $BUILD_DIR/$name
-  done
-}
-
+eval `/app/vendor/opam config env`
 cd $BUILD_DIR
 
-if [ -f .no_cache ]; then
-  echo "-----> Cleanup cache"
-  rm -rf $CACHE_DIR
-fi
-
-echo "-----> Fetching runtime"
-for url in ${urls[@]}; do
-  setup /app/vendor/$(basename $url .tgz | sed 's/-[^-]*$//') $url
-done
-
-echo "-----> Setup LD_PRELOAD"
-export LD_PRELOAD=/app/vendor/pcre/lib/libpcre.so.1
-
-echo "-----> Setup OCamlbrew"
-source /app/vendor/ocamlbrew/ocaml-4.00.1/etc/ocamlbrew.bashrc
-
-# opam
-if [ -f setup-opam ]; then
-  cache=$CACHE_DIR/opam.tgz
-  dir=/app/vendor/ocamlbrew/opamlib
-  if [ -f $cache ]; then
-    echo "-----> Restore from cache"
-    tar xzf $cache -C $dir || echo "cannot restore"
-  fi
-  echo "-----> Install libraries via OPAM"
-  ./setup-opam $CACHE_DIR/cache 2>&1 | indent
-  echo "-----> Caching opam libraries"
-  (cd $dir && tar czf $cache *)
-fi
-
-# configure
-if [ -f configure ]; then
-  echo "-----> Configuring"
-  ./configure 2>&1 | indent
-fi
-
-echo "-----> Compiling with Make"
-make all 2>&1 | indent
-
-echo "-----> Install runtime environment"
-copy vendor/pcre/{share,lib}
-copy vendor/gdbm/lib
-copy vendor/ocamlbrew/ocaml-4.00.1/lib
-copy vendor/ocamlbrew/opamlib/system/{lib,bin}
+/app/vendor/opam install -y `cat .opam-pkgs`
+make
