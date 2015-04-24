@@ -39,7 +39,7 @@ du -sh $CACHE_DIR/.opam
 tar zcf $CACHE_DIR/opam.tar.gz -C $CACHE_DIR .opam
 du -sh $CACHE_DIR/opam.tar.gz
 echo "-----> Deleting uncompressed OPAM state"
-rm -rf .opam
+rm -rf $CACHE_DIR/.opam
 
 echo "-----> Compressing OPAM binary"
 du -sh $CACHE_DIR/opam
