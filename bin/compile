@@ -9,20 +9,39 @@ CACHE_DIR=$2
 
 export OPAMROOT=$CACHE_DIR/.opam
 
-echo "-----> Install OPAM and OCaml"
-if [ -f $CACHE_DIR/opam ]; then
-	echo ">> From cache: $CACHE_DIR"
-	cp -a $CACHE_DIR/opam /app/vendor
+echo "-----> Installing OPAM binary and OCaml"
+if [ -f $CACHE_DIR/opam.gz ]; then
+	echo ">> Uncompressing from cache: $CACHE_DIR"
+        gunzip -f $CACHE_DIR/opam.gz
 else
 	echo ">> From scratch"
 	curl https://raw.githubusercontent.com/ocaml/opam/master/shell/opam_installer.sh -o opam_installer.sh
-	mkdir -p /app/vendor
-	yes N | sh opam_installer.sh /app/vendor || true
-	cp -a /app/vendor/opam $CACHE_DIR/
+	yes N | sh opam_installer.sh $CACHE_DIR || true
 fi
 
-eval `/app/vendor/opam config env`
+echo "-----> Unpacking cached OPAM state"
+if [ -f $CACHE_DIR/opam.tar.gz ]; then
+	echo ">> From cache: $CACHE_DIR"
+	tar zxf $CACHE_DIR/opam.tar.gz -C $CACHE_DIR
+fi
+
+eval `$CACHE_DIR/opam config env`
 cd $BUILD_DIR
 
-/app/vendor/opam install -y `cat .opam-pkgs`
+echo "-----> Installing OPAM packages"
+$CACHE_DIR/opam install -y `cat .opam-pkgs`
+
+echo "-----> Building application"
 make
+
+echo "-----> Compressing OPAM state"
+du -sh $CACHE_DIR/.opam
+tar zcf $CACHE_DIR/opam.tar.gz -C $CACHE_DIR .opam
+du -sh $CACHE_DIR/opam.tar.gz
+echo "-----> Deleting uncompressed OPAM state"
+rm -rf .opam
+
+echo "-----> Compressing OPAM binary"
+du -sh $CACHE_DIR/opam
+gzip -f $CACHE_DIR/opam
+du -sh $CACHE_DIR/opam.gz
