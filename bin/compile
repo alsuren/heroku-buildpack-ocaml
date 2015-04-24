@@ -45,3 +45,6 @@ echo "-----> Compressing OPAM binary"
 du -sh $CACHE_DIR/opam
 gzip -f $CACHE_DIR/opam
 du -sh $CACHE_DIR/opam.gz
+
+echo "-----> Total cache size"
+du -sh $CACHE_DIR
