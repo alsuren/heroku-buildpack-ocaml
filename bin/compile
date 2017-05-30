@@ -28,8 +28,10 @@ fi
 eval `$CACHE_DIR/opam config env`
 cd $BUILD_DIR
 
-echo "-----> Installing OPAM packages"
-$CACHE_DIR/opam install -y `cat .opam-pkgs`
+if [ -f .opam-pkgs ]; then
+	echo "-----> Installing OPAM packages"
+	$CACHE_DIR/opam install -y `cat .opam-pkgs`
+fi
 
 echo "-----> Building application"
 make
